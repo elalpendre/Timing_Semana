@@ -152,7 +152,23 @@ saliendo en el PDF**, que es donde de verdad se usaba.
 
 ---
 
-## 11 · Detalles menores
+## 11 · El botón de «Contar y pedir» mentía
+
+**Dónde:** `#btnCtCerrar`, en la pestaña *Contar y pedir*.
+
+El botón abre o cierra todos los departamentos de golpe, y cambiaba su
+etiqueta **solo al pulsarlo**. Al entrar en la app decía siempre «Cerrar todos»
+—lo que pone el HTML— aunque estuvieran todos cerrados. O sea: leías «Cerrar
+todos», lo pulsabas, y abría.
+
+**Arreglado:** la etiqueta se calcula cada vez que se dibuja la pestaña, así que
+dice siempre lo que va a hacer: **«Abrir todos · ver la lista entera»** o
+**«Cerrar todos»**. Además se esconde cuando solo hay un departamento que
+mostrar, porque ahí no hace nada.
+
+---
+
+## 12 · Detalles menores
 
 - **Nombres de ventas sin escapar** en la vista previa de *Pegar ventas*: un
   producto con `<` o `&` en el nombre descuadraba el recuadro. Ahora se escapan.

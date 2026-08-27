@@ -61,6 +61,25 @@ Sin esto, cualquiera que sepa la dirección puede ver y cambiar los datos.
 Las claves de los departamentos (Controller `0785`, Carne `1001`…) son otra cosa:
 son las de dentro de la app, y se cambian en **Controller → Equipo y claves**.
 
+---
+
+## Quién ve qué
+
+| Entra como | Qué ve |
+|---|---|
+| **Controller** (`0785`) | Todo, y es quien valida y manda los pedidos |
+| **Contar** (sin clave) | Todos los departamentos, pero solo la parte de contar |
+| **Carne** (`1001`) | Todos los departamentos · hace la ronda de conteo de la casa |
+| Resto de departamentos | Solo el suyo |
+
+Ese permiso no está fijo: en **Controller → Equipo y claves**, cada departamento
+tiene una casilla **«Ve y cuenta TODOS los departamentos»**. Viene marcada en
+Carne; marcala o desmarcala en quien haga falta.
+
+Quien lo tenga marcado ve arriba la barra con los cinco departamentos y, en la
+pestaña **Contar y pedir**, el botón **«Abrir todos · ver la lista entera»**, que
+despliega los cinco uno debajo del otro para hacer la ronda de una sentada.
+
 ### 4 · Instalarlo en los móviles
 
 - **Android (Chrome):** abrí la dirección → menú ⋮ → *Instalar aplicación*.

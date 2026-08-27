@@ -2438,7 +2438,7 @@ table.chj-t2 tr.tt td small{display:block;font-family:Arial,Helvetica,sans-serif
         <label class="acc-rec"><input type="checkbox" id="accRec" checked> Recordar en este dispositivo</label>
       </div>
     </div>
-    <div class="acc-f" id="accPie">Cada departamento ve solo lo suyo · el Controller ve todo<br><small id="accVer"></small></div>
+    <div class="acc-f" id="accPie">Cada departamento ve lo suyo · el Controller ve todo<br><small id="accVer"></small></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -3328,9 +3328,15 @@ function estadoMenaje(){ return {productos:prodPar(PROD_MENAJE), tareas:tareasPa
    ACCESO POR DEPARTAMENTO
    =========================================================== */
 const PIN_DEF = {admin:"0785", carne:"1001", pizza:"1002", cocina:"1003", sala:"1004", limpieza:"1005", menaje:"1006"};
+/* departamentos que, además de lo suyo, ven y cuentan todo lo demás.
+   Carne (clave 1001) entra así de fábrica: es quien hace la ronda de
+   conteo de toda la casa. Se enciende y se apaga para cualquier otro
+   desde Controller → Equipo y claves.                                  */
+const VE_TODO_DEF = {carne:true};
 function accesoBase(){
   const a = {admin:{nom:"Controller", email:"", tel:"", pin:PIN_DEF.admin}, areas:{}};
-  Object.keys(AREAS).forEach(k => a.areas[k] = {nom:"", email:"", pin:PIN_DEF[k] || "1000"});
+  Object.keys(AREAS).forEach(k => a.areas[k] = {nom:"", email:"", pin:PIN_DEF[k] || "1000",
+                                                verTodo: !!VE_TODO_DEF[k]});
   return a;
 }
 
@@ -3538,6 +3544,14 @@ function acc(){
   return S.acceso;
 }
 function esAdmin(){ return !SES || SES.rol === "admin"; }
+/* ¿este usuario ve los demás departamentos? El Controller y «Contar»,
+   siempre; un departamento, solo si le pusieron el permiso.            */
+function veTodo(){
+  if(esAdmin() || esContar()) return true;
+  const r = (SES && SES.rol !== "admin" && SES.rol !== "contar") ? SES.rol : null;
+  if(!r) return false;
+  return !!((acc().areas[r] || {}).verTodo);
+}
 /* usuario "Contar": entra sin clave y solo ve el conteo de cada departamento */
 function esContar(){ return !!(SES && SES.rol === "contar"); }
 function rolArea(){ const r = (SES && SES.rol !== "admin" && SES.rol !== "contar") ? SES.rol : null;
@@ -8540,6 +8554,17 @@ function migrarTomeu(){
   S.tomeu1 = true;
 }
 
+/* el permiso de ver todos los departamentos, en los planes de antes */
+function migrarVerTodo(){
+  if(S.verTodo1) return;
+  const A0 = acc();
+  Object.keys(AREAS).forEach(k => {
+    A0.areas[k] = A0.areas[k] || {};
+    if(A0.areas[k].verTodo === undefined) A0.areas[k].verTodo = !!VE_TODO_DEF[k];
+  });
+  S.verTodo1 = true;
+}
+
 /* la carnicería es Carnes Víctor: el nombre real, en todas las áreas */
 function migrarVictor(){
   if(S.victor1) return;
@@ -8679,7 +8704,8 @@ function migrarTodo(){
   const pasos = [migrarCatalogo, migrarCarne, migrarCongelacion, migrarMolleja, migrarBambu,
                  migrarPizzaLimp, migrarBraseroKg, migrarSegDiego, migrarSabado, migrarDosCol,
                  migrarCocinaPizza, migrarLimpMenaje, migrarSepararCocPiz, migrarUbicaciones,
-                 migrarVipOculto, migrarMenajeSalsas, migrarTomeu, migrarVictor, limpiarMenusTodo];
+                 migrarVipOculto, migrarMenajeSalsas, migrarTomeu, migrarVictor,
+                 migrarVerTodo, limpiarMenusTodo];
   pasos.forEach(fn => { try{ fn(); }catch(e){ console.warn("puesta al día:", fn.name, e); } });
 }
 
@@ -8843,11 +8869,12 @@ function salir(){
 }
 function aplicarRol(){
   const r = rolArea();
-  /* «Contar» ve todos los departamentos, pero solo la parte de contar */
-  $$(".area").forEach(b => { b.style.display = (esAdmin() || esContar() || b.dataset.area === r) ? "" : "none"; });
+  /* «Contar», el Controller y los departamentos con permiso ven la barra entera */
+  const todos = veTodo();
+  $$(".area").forEach(b => { b.style.display = (todos || b.dataset.area === r) ? "" : "none"; });
   const tj = document.querySelector('.tab[data-panel="junto"]');
   if(tj) tj.style.display = esAdmin() ? "" : "none";
-  if(!esAdmin() && !esContar() && AREA !== areaViva(r)) AREA = areaViva(r);
+  if(!todos && AREA !== areaViva(r)) AREA = areaViva(r);
   if(!esAdmin() && document.querySelector('.tab[data-panel="junto"][aria-selected="true"]')) verPanel("semana");
   /* en Controller y en Contar y pedir están todos los departamentos a la vez */
   const enJ = ["junto","contar"].indexOf(panelAbierto()) >= 0;
@@ -8857,7 +8884,9 @@ function aplicarRol(){
   if(q){
     $("#qN").textContent = esAdmin() ? (acc().admin.nom || "CONTROLLER").toUpperCase()
                                      : (esContar() ? "CONTAR" : AREAS[AREA].nom.toUpperCase());
-    $("#qS").textContent = esAdmin() ? "todo · salir" : (esContar() ? "solo contar · salir" : "solo tu área · salir");
+    $("#qS").textContent = esAdmin() ? "todo · salir"
+                         : (esContar() ? "solo contar · salir"
+                         : (todos ? "todos los deptos · salir" : "solo tu área · salir"));
     q.querySelector(".qp").style.background = esAdmin() ? "#0B3FA8" : (A().colores[3] || "#0B3FA8");
   }
 }
@@ -8921,13 +8950,27 @@ function equipoYClaves(){
     g.appendChild(f);
     if(conTel){ const iT = el("input"); iT.value = o.tel || ""; iT.placeholder = "34600000000 · para que le avisen por WhatsApp";
       g.appendChild(campo("WhatsApp del Controller", iT)); filas[k] = {iN, iE, iP, iT}; }
-    else filas[k] = {iN, iE, iP};
+    else{
+      /* este departamento, ¿ve solo lo suyo o toda la casa? */
+      const lb = el("label","nh-d" + (o.verTodo ? " on" : ""));
+      lb.style.marginTop = "2px";
+      const iV = el("input"); iV.type = "checkbox"; iV.checked = !!o.verTodo;
+      iV.addEventListener("change", () => lb.classList.toggle("on", iV.checked));
+      lb.appendChild(iV);
+      lb.appendChild(el("span",null,"Ve y cuenta TODOS los departamentos"));
+      lb.title = "Con esto marcado, este usuario ve la barra entera y en «Contar y pedir» " +
+                 "le sale la lista de todos los departamentos, no solo la suya.";
+      g.appendChild(lb);
+      filas[k] = {iN, iE, iP, iV};
+    }
     w.appendChild(g);
   };
   fila("admin", "Controller", acc().admin, true);
   Object.keys(AREAS).forEach(k => fila(k, AREAS[k].nom, acc().areas[k] || {}, false));
   const n = el("div","nota");
-  n.innerHTML = "Cada uno entra con <b>su clave</b> y ve solo su departamento. El <b>Controller</b> ve todo y es quien valida y manda los pedidos.";
+  n.innerHTML = "Cada uno entra con <b>su clave</b>. Por defecto ve solo su departamento; " +
+    "marcá <b>«Ve y cuenta TODOS los departamentos»</b> al que haga la ronda de conteo de toda la casa. " +
+    "El <b>Controller</b> ve todo y es quien valida y manda los pedidos.";
   w.appendChild(n);
   abrir("Equipo y claves", [w], () => {
     const A0 = acc();
@@ -8939,6 +8982,7 @@ function equipoYClaves(){
       A0.areas[k].nom = filas[k].iN.value.trim();
       A0.areas[k].email = filas[k].iE.value.trim();
       A0.areas[k].pin = (filas[k].iP.value || "").trim() || A0.areas[k].pin;
+      if(filas[k].iV) A0.areas[k].verTodo = filas[k].iV.checked;
     });
     cerrar(); render(); pintarRoles(); toast("Equipo y claves guardados");
   });
@@ -9592,12 +9636,16 @@ $("#btnNuevoProv").addEventListener("click", () => {
   }, {ph:"Ej: Verduras Bambú", nota:"Se crea en <b>" + A().nom + "</b> y le cargás el primer producto. Después, en su ficha, ponés el teléfono, los días de pedido y qué departamentos le compran."});
 });
 $("#btnCtCerrar").addEventListener("click", () => {
-  const algo = Object.keys(S.ctOpen || {}).some(k => S.ctOpen[k]);
+  /* si hay alguno abierto, se cierran todos; si no, se abren todos */
+  const algo = areasParaContar().some(k => ctAbierta(k));
   S.ctOpen = {};
   if(!algo) areasParaContar().forEach(k => { S.ctOpen[k] = true; });
   guardarLocal();
   renderContarTodo();
-  $("#btnCtCerrar").textContent = algo ? "Abrir todos" : "Cerrar todos";
+  if(!algo){
+    const c = $("#contarTodo"); if(c) c.scrollIntoView({behavior:"smooth", block:"start"});
+  }
+  toast(algo ? "Departamentos cerrados" : "Abiertos los " + areasParaContar().length + " departamentos");
 });
 
 $("#btnJuntoFiltro").addEventListener("click", () => {
@@ -10688,8 +10736,8 @@ function renderHoja(){
   if(panelAbierto() === "contar"){ try{ renderContarTodo(); }catch(e){ console.warn("contar:", e); } }
 }
 function areasParaContar(){
-  const r = rolArea();
-  return Object.keys(AREAS).filter(k => !AREAS_OFF[k] && (esAdmin() || esContar() || k === r));
+  const r = rolArea(), todos = veTodo();
+  return Object.keys(AREAS).filter(k => !AREAS_OFF[k] && (todos || k === r));
 }
 function ctAbierta(k){ return !!(S.ctOpen || {})[k]; }
 /* el color del departamento, aclarado sobre blanco */
@@ -10777,6 +10825,15 @@ function renderContarTodo(){
   });
   AREA = antes;
   if(!lista.length) cont.appendChild(el("div","junto-vacio","No tenés departamentos para contar."));
+  /* el botón dice lo que va a hacer, no lo que hizo la última vez */
+  const bc = $("#btnCtCerrar");
+  if(bc){
+    const algo = lista.some(k => ctAbierta(k));
+    bc.style.display = lista.length > 1 ? "" : "none";
+    bc.textContent = algo ? "Cerrar todos" : "Abrir todos · ver la lista entera";
+    bc.title = algo ? "Plegar los " + lista.length + " departamentos"
+                    : "Abrir los " + lista.length + " departamentos, uno debajo del otro";
+  }
 }
 
 /* ===========================================================
