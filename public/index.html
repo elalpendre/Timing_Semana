@@ -3327,7 +3327,7 @@ function estadoMenaje(){ return {productos:prodPar(PROD_MENAJE), tareas:tareasPa
 /* ===========================================================
    ACCESO POR DEPARTAMENTO
    =========================================================== */
-const PIN_DEF = {admin:"0785", carne:"1001", pizza:"1002", cocina:"1003", sala:"1004", limpieza:"1005", menaje:"1006"};
+const PIN_DEF = {admin:"0785", carne:"1001", pizza:"1001", cocina:"1001", sala:"1001", limpieza:"1001", menaje:"1001"};
 /* departamentos que, además de lo suyo, ven y cuentan todo lo demás.
    Carne (clave 1001) entra así de fábrica: es quien hace la ronda de
    conteo de toda la casa. Se enciende y se apaga para cualquier otro
@@ -8801,6 +8801,14 @@ function aplicarPaquete(d){
   /* pasar lo guardado antes al nuevo nombre y clave del controller */
   if(!S.acceso.admin.nom || S.acceso.admin.nom === "Compras / Gerencia") S.acceso.admin.nom = "Controller";
   if(!S.acceso.admin.pin || S.acceso.admin.pin === "5555") S.acceso.admin.pin = "0785";
+  /* todas las áreas entran con la misma clave 1001: si seguía con la de fábrica de antes, se actualiza sola */
+  {
+    const FAB_ANTES = {carne:"1001", pizza:"1002", cocina:"1003", sala:"1004", limpieza:"1005", menaje:"1006"};
+    Object.keys(FAB_ANTES).forEach(k => {
+      const e = S.acceso.areas[k];
+      if(e && (!e.pin || e.pin === FAB_ANTES[k])) e.pin = "1001";
+    });
+  }
   if(!S.envios) S.envios = {};
   ["carne","pizza","cocina","sala","limpieza","menaje"].forEach(k => { if(!S[k]) S[k] = base[k]; });
   migrarTodo();
