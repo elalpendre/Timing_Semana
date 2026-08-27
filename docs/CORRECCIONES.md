@@ -187,6 +187,42 @@ mostrar, porque ahí no hace nada.
 
 ---
 
+## 13 · El distribuidor aparecía en departamentos que no lo tenían marcado
+
+En **Controller → Distribuidores**, dentro de la ficha se eligen los
+departamentos que le compran a ese distribuidor. Esa elección **solo sumaba**:
+`depsProv()` devolvía la unión de lo marcado a mano con los departamentos donde
+el distribuidor tuviera algún producto cargado, así que **desmarcar no sacaba a
+nadie de ningún lado**. Poner *Makro* solo en Cocina no lo quitaba de Pizza.
+
+Además, las listas nunca miraban esa marca: `porProveedor()` agrupaba por
+`c.prov` a secas, y el cartel (`cartelFilas()`) y el pedido junto del Controller
+(`acumulado()`) recorrían los productos de cada área directamente.
+
+**Arreglado:**
+
+- `depsProv()` es ahora **autoritativo**: si hay departamentos marcados, mandan
+  ellos. Si no hay ninguno marcado se sigue deduciendo solo, mirando dónde tiene
+  productos — así nada cambia hasta que el Controller decide.
+- Nuevos `provEnArea(nom, area)` y `veProdAca(cnt, area)`, y con ellos filtran
+  **la hoja de conteo y pedido** (`porProveedor()`), **el cartel** que se cuenta
+  e imprime (`cartelFilas()`, y con él `ctEstado()` y la pestaña *Contar y
+  pedir*) y **el pedido junto del Controller** (`acumulado()`).
+- «Sin proveedor» nunca se esconde: no es un distribuidor.
+- **Nada desaparece en silencio.** La hoja del departamento avisa arriba
+  («*No se cuentan acá: Makro (8)…*») y la ficha del distribuidor lo dice en
+  vivo, antes de guardar: «⚠ *Deja de verse en Pizza (8). Los productos no se
+  borran: vuelven a aparecer en cuanto lo marques otra vez*».
+- **`nuevoProducto()` no registraba el departamento** en la ficha del
+  distribuidor (sí lo hacían los otros cuatro caminos de alta). Con el filtro
+  puesto, un producto nuevo habría desaparecido al instante. Se añadió
+  `marcarProvEnArea()`.
+- Puesta al día `migrarDepsProv()`: antes de estrenar la regla nueva deja
+  escrito en cada ficha lo que hoy se ve, para que ningún departamento pierda
+  productos sin que el Controller lo haya elegido.
+
+---
+
 ## Lo que se dejó tal cual, a propósito
 
 - **CSS duplicado** dentro del bloque `@media print` del cartel: unas 100 líneas

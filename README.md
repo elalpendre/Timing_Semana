@@ -80,6 +80,22 @@ Quien lo tenga marcado ve arriba la barra con los cinco departamentos y, en la
 pestaña **Contar y pedir**, el botón **«Abrir todos · ver la lista entera»**, que
 despliega los cinco uno debajo del otro para hacer la ronda de una sentada.
 
+## Qué distribuidor ve cada departamento
+
+En **Controller → Distribuidores**, dentro de la ficha de cada uno están los
+**«Departamentos que le compran»**. Lo que quede marcado ahí manda: si *Makro*
+queda solo en **Cocina**, en los demás departamentos no aparece — ni en la hoja
+de conteo, ni en el cartel, ni en el pedido junto.
+
+- Mientras no marques ninguno, el distribuidor aparece donde tenga productos
+  cargados. La primera marca es la que empieza a mandar.
+- **Desmarcar no borra nada.** Los productos se quedan guardados en su
+  departamento y vuelven a verse en cuanto lo marques otra vez. La ficha te lo
+  dice antes de guardar, con la cuenta de cuántos productos deja de ver cada
+  departamento.
+- La hoja del departamento avisa arriba cuando tiene productos que no se cuentan
+  ahí por este motivo, así nunca desaparece nada en silencio.
+
 ### 4 · Instalarlo en los móviles
 
 - **Android (Chrome):** abrí la dirección → menú ⋮ → *Instalar aplicación*.

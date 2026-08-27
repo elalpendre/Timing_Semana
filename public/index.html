@@ -4352,9 +4352,12 @@ function porProveedor(){
     const c = C(p);
     if(!seCuenta(c)) return;                 /* no se cuenta ni se pide: ya va dentro de otro */
     const k = c.prov || "Sin proveedor";
-    if(!m.has(k)) m.set(k,[]); m.get(k).push(p);
+    /* el distribuidor solo sale en los departamentos que tiene marcados en su ficha */
+    if(provEnArea(k)){ if(!m.has(k)) m.set(k,[]); m.get(k).push(p); }
     /* un producto puede tener un segundo distribuidor: sale en las dos listas */
-    if(c.prov2 && c.prov2 !== k){ if(!m.has(c.prov2)) m.set(c.prov2,[]); m.get(c.prov2).push(p); }
+    if(c.prov2 && c.prov2 !== k && provEnArea(c.prov2)){
+      if(!m.has(c.prov2)) m.set(c.prov2,[]); m.get(c.prov2).push(p);
+    }
   });
   /* distribuidores asignados a esta área desde su ficha, aunque todavía no tengan productos */
   const P = S.provs || {};
@@ -4364,12 +4367,34 @@ function porProveedor(){
   });
   return m;
 }
+/* ---------- qué departamentos ven a un distribuidor ----------
+   Manda lo que el Controller marcó en la ficha: si Makro queda solo en
+   Cocina, en los demás departamentos no aparece, ni para contar ni para
+   pedir. Mientras nadie haya marcado nada se deduce solo, mirando dónde
+   tiene productos cargados.                                              */
 function depsProv(nom){
   const ex = ((S.provs || {})[nom] || {}).deps;
-  const auto = areasDeProv(nom);
-  const out = auto.slice();
-  (Array.isArray(ex) ? ex : []).forEach(k => { if(AREAS[k] && out.indexOf(k) < 0) out.push(k); });
-  return out;
+  const marc = Array.isArray(ex) ? ex.filter(k => AREAS[k]) : [];
+  return marc.length ? marc : areasDeProv(nom);
+}
+/* ¿este distribuidor se ve en este departamento? */
+function provEnArea(nom, a){
+  const area = a || AREA;
+  /* «Sin proveedor» no es un distribuidor: nunca se esconde */
+  if(!nom || nom === "Sin proveedor" || nom === "Sin distribuidor") return true;
+  return depsProv(nom).some(k => k === area || areaViva(k) === area);
+}
+/* ¿este producto se ve en el departamento que se está mirando?
+   Basta con que uno de sus dos distribuidores esté marcado acá.        */
+function veProdAca(c, a){
+  if(provEnArea(c.prov || "", a)) return true;
+  return !!(c.prov2 && provEnArea(c.prov2, a));
+}
+/* cuántos productos de este distribuidor hay cargados en un departamento */
+function cuantosProdProvArea(nom, k){
+  const st = S[k]; if(!st || !Array.isArray(st.productos)) return 0;
+  return st.productos.filter(p => { const c = C(p);
+    return (c.prov || "Sin proveedor") === nom || (c.prov2 || "") === nom; }).length;
 }
 /* ---------- la lista madre de un distribuidor ----------
    Todo lo que ese distribuidor sirve, mirando todos los departamentos.
@@ -5017,6 +5042,20 @@ function avisosConteo(totL, totB){
   else av.push({n:"ok",tag:"Al día",txt:"Todo <b>" + A().nom + "</b> está por encima del stock de seguridad. No hay que pedir nada."});
   const sinProv = E().productos.filter(p => !C(p).prov).length;
   if(sinProv) av.push({n:"err",tag:"Sin proveedor",txt:"<b>" + sinProv + "</b> producto(s) sin proveedor: salen agrupados en «Sin proveedor»."});
+  /* nada desaparece en silencio: si un distribuidor no está marcado en este
+     departamento, sus productos no se cuentan acá y hay que decirlo */
+  const fuera = {};
+  E().productos.forEach(p => {
+    const c = C(p);
+    if(veProdAca(c)) return;
+    const k = c.prov || "Sin proveedor";
+    fuera[k] = (fuera[k] || 0) + 1;
+  });
+  const nf = Object.keys(fuera);
+  if(nf.length) av.push({n:"warn", tag:"Fuera del departamento",
+    txt:"No se cuentan acá: " + nf.map(k => "<b>" + k + "</b> (" + fuera[k] + ")").join(", ") +
+        ". En su ficha, " + A().nom + " no está marcado. Los productos siguen guardados: " +
+        "se ven de nuevo en cuanto el Controller marque el departamento."});
   pintarAlertas($("#alConteo"), av);
 }
 
@@ -5488,8 +5527,19 @@ function nuevoProducto(prov){
                         : UD(iU.value.trim() || "ud");
       const base = {id:nid(), nombre:n, cnt:ficha(prov, parseFloat(iS.value) || 0, "", o)};
       if(A().modo !== "par"){ base.consumo = [0,0,0,0,0,0,0]; base.rac = 0; base.kg = 0; base.unidad = base.cnt.unidad; base.tanda = 0; base.stock = 0; base.seg = 0.5; }
-      E().productos.push(base); cerrar(); render();
+      E().productos.push(base);
+      /* si no, el distribuidor no estaría marcado acá y el producto no se vería */
+      marcarProvEnArea(prov, AREA);
+      cerrar(); render();
     });
+}
+/* deja al distribuidor marcado en un departamento (sin tocar los demás) */
+function marcarProvEnArea(prov, a){
+  if(!prov || prov === "Sin proveedor") return;
+  const dp = depsProv(prov).slice();
+  if(dp.indexOf(a) >= 0) return;
+  dp.push(a);
+  guardarProv(prov, {nom:(infoProv(prov).nom || prov), deps:dp});
 }
 function kgPorRacion(p){ return (+p.rac > 0 && +p.kg > 0) ? p.kg / p.rac : 0; }
 
@@ -5629,17 +5679,30 @@ function fichaProv(nom){
     const conProd = areasDeProv(nom).indexOf(k) >= 0;
     const b2 = el("button","fp-dep " + k + (seld.indexOf(k) >= 0 ? " on" : ""), AREAS[k].nom);
     b2.type = "button";
-    b2.title = conProd ? "Ya tiene productos cargados en " + AREAS[k].nom : "Marcalo para que aparezca en " + AREAS[k].nom;
+    b2.title = conProd ? "Tiene " + cuantosProdProvArea(nom, k) + " producto(s) cargado(s) en " + AREAS[k].nom
+                       : "Marcalo para que aparezca en " + AREAS[k].nom;
     b2.addEventListener("click", () => {
       const j = seld.indexOf(k); if(j >= 0) seld.splice(j,1); else seld.push(k);
       b2.classList.toggle("on");
+      pintarNota();
     });
     bxd.appendChild(b2);
   });
   gdep.appendChild(bxd);
   const enc = el("div","fp-nota full"); enc.style.marginTop = "6px";
-  const quienes = seld.map(k => { const e2 = (acc().areas[k] || {}); return AREAS[k].nom + ": <b>" + (e2.nom || "sin encargado") + "</b>"; });
-  enc.innerHTML = quienes.length ? "Encargados · " + quienes.join(" · ") : "Marcá los departamentos que le compran a este distribuidor.";
+  /* se ve al momento qué departamentos dejan de tenerlo, antes de guardar */
+  const pintarNota = () => {
+    const quienes = seld.map(k => { const e2 = (acc().areas[k] || {}); return AREAS[k].nom + ": <b>" + (e2.nom || "sin encargado") + "</b>"; });
+    const fuera = areasDeProv(nom).filter(k => seld.indexOf(k) < 0)
+                    .map(k => AREAS[k].nom + " (" + cuantosProdProvArea(nom, k) + ")");
+    let t = quienes.length
+      ? "Solo estos departamentos lo ven para contar y pedir · " + quienes.join(" · ")
+      : "Marcá los departamentos que le compran a este distribuidor. Sin ninguno marcado aparece donde tenga productos cargados.";
+    if(fuera.length) t += "<br>⚠ Deja de verse en <b>" + fuera.join(", ") +
+      "</b>. Los productos no se borran: vuelven a aparecer en cuanto lo marques otra vez.";
+    enc.innerHTML = t;
+  };
+  pintarNota();
   gdep.appendChild(enc);
   w.appendChild(gdep);
 
@@ -6087,6 +6150,8 @@ function acumulado(){
     const areaEnviada = !!(e0 && e0.fecha === fechaActiva());
     aplicarRecetas(st.productos);
     porProveedorDe(st.productos).forEach((lista, prov) => {
+      /* ese departamento no le compra a este distribuidor: no lo pudo contar */
+      if(!provEnArea(prov, ak)) return;
       const g = grupoDe(prov);
       if(!G.has(g)) G.set(g, {grupo:g, provs:[], areas:[], items:[], mapa:new Map(), lineas:0, retiradas:0});
       const B = G.get(g);
@@ -8554,6 +8619,23 @@ function migrarTomeu(){
   S.tomeu1 = true;
 }
 
+/* Antes, los departamentos de la ficha del distribuidor solo sumaban:
+   desmarcar uno no lo sacaba de ninguna parte. Ahora la marca manda, así
+   que antes de estrenarla dejo escrito lo que hoy se ve, para que no
+   desaparezca nada sin que el Controller lo haya decidido.               */
+function migrarDepsProv(){
+  if(S.depsProv1) return;
+  const P = S.provs || {};
+  Object.keys(P).forEach(n => {
+    const ex = P[n] && P[n].deps;
+    if(!Array.isArray(ex) || !ex.length) return;   /* sin marcar: se sigue deduciendo solo */
+    const out = ex.filter(k => AREAS[k]);
+    areasDeProv(n).forEach(k => { if(out.indexOf(k) < 0) out.push(k); });
+    P[n].deps = out;
+  });
+  S.depsProv1 = true;
+}
+
 /* el permiso de ver todos los departamentos, en los planes de antes */
 function migrarVerTodo(){
   if(S.verTodo1) return;
@@ -8705,7 +8787,7 @@ function migrarTodo(){
                  migrarPizzaLimp, migrarBraseroKg, migrarSegDiego, migrarSabado, migrarDosCol,
                  migrarCocinaPizza, migrarLimpMenaje, migrarSepararCocPiz, migrarUbicaciones,
                  migrarVipOculto, migrarMenajeSalsas, migrarTomeu, migrarVictor,
-                 migrarVerTodo, limpiarMenusTodo];
+                 migrarDepsProv, migrarVerTodo, limpiarMenusTodo];
   pasos.forEach(fn => { try{ fn(); }catch(e){ console.warn("puesta al día:", fn.name, e); } });
 }
 
@@ -10091,6 +10173,8 @@ function cartelFilas(){
   E().productos.forEach(p => {
     const c = C(p);
     if(esRet(c)) return;
+    /* el distribuidor no está marcado en este departamento: acá no se cuenta */
+    if(!veProdAca(c)) return;
     const tot = objTotal(c);
     const bras = cartelLineasBras(p);
     /* lo suelto es el total menos lo que se van los braseros: nunca se cuenta dos veces */
