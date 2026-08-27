@@ -1,0 +1,12 @@
+{
+  "name": "alpendre-timing",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Timing semanal, conteo y pedidos de El Alpendre · web y móvil",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "dev": "node servidor-local.mjs",
+    "check": "node --check public/sync.js && node --check public/app-check.tmp.js || true"
+  }
+}
