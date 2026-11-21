@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/", "has": [{ "type": "host", "value": "panel.grupopuro.io" }], "destination": "https://boe-subastas.alpendre.workers.dev/app" },
     { "source": "/", "destination": "https://boe-subastas.alpendre.workers.dev/clientes" },
     { "source": "/(.*)", "destination": "https://boe-subastas.alpendre.workers.dev/$1" }
   ]
