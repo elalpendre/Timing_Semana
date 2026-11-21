@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "https://boe-subastas.alpendre.workers.dev/clientes" },
+    { "source": "/(.*)", "destination": "https://boe-subastas.alpendre.workers.dev/$1" }
+  ]
+}
